@@ -1,0 +1,35 @@
+# AI_GENERATED_CODE_START
+# [AI Generated] Data: 19/03/2024
+# Descrição: Dockerfile para desenvolvimento com hot reload
+# Gerado por: Cursor AI
+# Versão: Node.js 18, TypeScript
+
+# Use Node.js 18 Alpine as base image
+FROM node:18-alpine
+
+# Install dependencies for development
+RUN apk add --no-cache libc6-compat
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Expose port
+EXPOSE 5000
+
+# Set environment variables
+ENV NODE_ENV=development
+ENV PORT=5000
+ENV HOSTNAME="0.0.0.0"
+
+# Start development server
+CMD ["npm", "run", "dev"]
+# AI_GENERATED_CODE_END 

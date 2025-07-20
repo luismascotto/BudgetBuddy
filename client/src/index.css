@@ -1,6 +1,8 @@
+/* stylelint-disable */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+/* stylelint-enable */
 
 :root {
   --background: hsl(0, 0%, 98%);

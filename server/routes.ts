@@ -4,9 +4,92 @@ import { storage } from "./storage";
 import { insertCategorySchema, insertPaymentMethodSchema, insertExpenseSchema } from "@shared/schema";
 import { z } from "zod";
 
+// Authentication configuration from environment variables with defaults
+const FIXED_USERNAME = process.env.BUDGET_USERNAME || "admin";
+const FIXED_PASSWORD = process.env.BUDGET_PASSWORD || "budget123";
+const SESSION_SECRET = process.env.BUDGET_SESSION_SECRET || "budget-buddy-secret-key-2024";
+
+// Simple session storage (in production, use Redis or database)
+const activeSessions = new Set<string>();
+
+// Middleware to check authentication
+const requireAuth = (req: any, res: any, next: any) => {
+  const sessionId = req.cookies?.sessionId;
+  
+  if (!sessionId || !activeSessions.has(sessionId)) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
+  next();
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Login route
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (username === FIXED_USERNAME && password === FIXED_PASSWORD) {
+        // Generate session ID
+        const sessionId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+        activeSessions.add(sessionId);
+        
+        // Set cookie with session ID
+        res.cookie('sessionId', sessionId, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+        
+        res.json({ 
+          success: true, 
+          message: "Login successful",
+          user: { username: FIXED_USERNAME }
+        });
+      } else {
+        res.status(401).json({ 
+          success: false, 
+          message: "Invalid credentials" 
+        });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  // Logout route
+  app.post("/api/auth/logout", async (req, res) => {
+    try {
+      const sessionId = req.cookies?.sessionId;
+      if (sessionId) {
+        activeSessions.delete(sessionId);
+      }
+      
+      res.clearCookie('sessionId');
+      res.json({ success: true, message: "Logout successful" });
+    } catch (error) {
+      res.status(500).json({ message: "Logout failed" });
+    }
+  });
+
+  // Check auth status
+  app.get("/api/auth/status", async (req, res) => {
+    try {
+      const sessionId = req.cookies?.sessionId;
+      const isAuthenticated = sessionId && activeSessions.has(sessionId);
+      
+      res.json({ 
+        isAuthenticated,
+        user: isAuthenticated ? { username: FIXED_USERNAME } : null
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to check auth status" });
+    }
+  });
+
   // Categories
-  app.get("/api/categories", async (req, res) => {
+  app.get("/api/categories", requireAuth, async (req, res) => {
     try {
       const categories = await storage.getCategories();
       res.json(categories);
@@ -15,7 +98,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/categories", async (req, res) => {
+  app.post("/api/categories", requireAuth, async (req, res) => {
     try {
       const category = insertCategorySchema.parse(req.body);
       const created = await storage.createCategory(category);
@@ -29,7 +112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/categories/:id", async (req, res) => {
+  app.put("/api/categories/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const category = insertCategorySchema.partial().parse(req.body);
@@ -48,7 +131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/categories/:id", async (req, res) => {
+  app.delete("/api/categories/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const deleted = await storage.deleteCategory(id);
@@ -63,7 +146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Payment Methods
-  app.get("/api/payment-methods", async (req, res) => {
+  app.get("/api/payment-methods", requireAuth, async (req, res) => {
     try {
       const paymentMethods = await storage.getPaymentMethods();
       res.json(paymentMethods);
@@ -72,7 +155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/payment-methods", async (req, res) => {
+  app.post("/api/payment-methods", requireAuth, async (req, res) => {
     try {
       const paymentMethod = insertPaymentMethodSchema.parse(req.body);
       const created = await storage.createPaymentMethod(paymentMethod);
@@ -86,7 +169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/payment-methods/:id", async (req, res) => {
+  app.put("/api/payment-methods/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const paymentMethod = insertPaymentMethodSchema.partial().parse(req.body);
@@ -105,7 +188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/payment-methods/:id", async (req, res) => {
+  app.delete("/api/payment-methods/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const deleted = await storage.deletePaymentMethod(id);
@@ -120,7 +203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Expenses
-  app.get("/api/expenses", async (req, res) => {
+  app.get("/api/expenses", requireAuth, async (req, res) => {
     try {
       const { year, month } = req.query;
       let expenses;
@@ -137,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/expenses", async (req, res) => {
+  app.post("/api/expenses", requireAuth, async (req, res) => {
     try {
       const expense = insertExpenseSchema.parse(req.body);
       const created = await storage.createExpense(expense);
@@ -151,7 +234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/expenses/:id", async (req, res) => {
+  app.put("/api/expenses/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const expense = insertExpenseSchema.partial().parse(req.body);
@@ -170,7 +253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/expenses/:id", async (req, res) => {
+  app.delete("/api/expenses/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const deleted = await storage.deleteExpense(id);

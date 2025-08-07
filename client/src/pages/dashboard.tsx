@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Wallet, Menu, Calendar, Plus } from "lucide-react";
+import { Wallet, Menu, Calendar, Plus, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MonthlyOverview } from "@/components/monthly-overview";
 import { ExpenseList } from "@/components/expense-list";
@@ -9,11 +9,13 @@ import { ExpenseFormSimple as ExpenseForm } from "@/components/expense-form-simp
 import { MonthlyProjection } from "@/components/monthly-projection";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/lib/auth";
 import type { ExpenseWithDetails } from "@shared/schema";
 
 export default function Dashboard() {
   const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
   const isMobile = useIsMobile();
+  const { logout, user } = useAuth();
   
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth() + 1;
@@ -31,6 +33,10 @@ export default function Dashboard() {
     setIsExpenseDialogOpen(false);
   };
 
+  const handleLogout = async () => {
+    await logout();
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -45,6 +51,18 @@ export default function Dashboard() {
               <div className="hidden md:flex items-center space-x-2 bg-primary/20 rounded-lg px-3 py-1">
                 <Calendar className="h-4 w-4" />
                 <span className="text-sm capitalize">{formatMonth(currentDate)}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="hidden md:block text-sm">Welcome, {user?.username}</span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleLogout}
+                  className="text-white hover:bg-white/10"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span className="hidden md:inline ml-2">Logout</span>
+                </Button>
               </div>
               {isMobile && (
                 <Button variant="ghost" size="sm">
